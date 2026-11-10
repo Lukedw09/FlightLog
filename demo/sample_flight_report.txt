@@ -1,0 +1,41 @@
+Wrote demo/sample_flight.csv
+Wrote demo/sample_flight.png
+flightlog — SIMULATED DATA
+Educational synthetic telemetry. Not a real flight. Not validated flight
+physics or flight-control data.
+
+Samples: 2860    duration: 114.38 s    median interval: 0.0400 s (25.00 Hz)
+
+Sketch inputs (not measurements)
+  ground 8 s, boost 2.8 s at 35 m/s^2 net, parachute sink 7.5 m/s, landed 10 s
+  seed 42, noise 18 Pa and 0.25 °C
+
+Atmosphere: ISA troposphere. Reference pressure 101325 Pa. Site elevation 150
+m. altitude_m is meters above the launch site, not above sea level.
+Detection used the altitude_m column as stored. Pressure was not re-inverted.
+
+Pad baseline: -0.26 m    pad scatter (robust): 1.23 m    liftoff clearance: 9.87 m
+Liftoff clearance is the larger of 5 m and 8 robust standard deviations of the
+opening seconds.
+
+Detected from the altitude estimate only
+  liftoff     9.001 s    smoothed estimate      9.7 m AGL
+  apogee     20.843 s    smoothed estimate    626.4 m AGL
+  landing   105.374 s    smoothed estimate     -0.2 m AGL
+
+Simulator truth — not read by the detector (simulator clock stored in the CSV header)
+  liftoff     8.000 s
+  burnout    10.800 s
+  apogee     20.793 s       626.9 m AGL
+  landing   104.376 s
+  liftoff detection minus truth: +1.00 s
+  apogee detection minus truth: +0.05 s, -0.5 m
+  landing detection minus truth: +1.00 s
+
+Limitations: this is a post-flight check, not a flight computer. Liftoff waits
+until the climb clears pad noise and holds that climb. Apogee is the peak of
+the smoothed estimate, so it can sit a fraction of a second off the true peak.
+Landing waits until recent motion has died away, so it lags touchdown by about
+a second on the sample flight. A very low flight, or a very slow descent, can
+be missed or marked late. Not for flight safety or flight control.
+events: liftoff=9.001226 apogee=20.842840 landing=105.374356

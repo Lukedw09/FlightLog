@@ -1,0 +1,15 @@
+{
+  "files": [
+    "__init__.py",
+    "atmosphere.py",
+    "constants.py",
+    "detect.py",
+    "generate.py",
+    "import_csv.py",
+    "io.py",
+    "log.py",
+    "session.py",
+    "trajectory.py",
+    "xlsx_io.py"
+  ]
+}

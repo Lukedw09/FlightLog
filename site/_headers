@@ -1,0 +1,30 @@
+# Cloudflare Pages headers. Later rules override earlier ones.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self'; connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org; img-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'
+
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/static/*
+  Cache-Control: public, max-age=3600
+
+/pkg/*
+  Cache-Control: public, max-age=3600
+  Content-Type: text/plain; charset=utf-8
+
+/pkg/manifest.json
+  Cache-Control: public, max-age=300
+  Content-Type: application/json; charset=utf-8
+
+/demos/*
+  Cache-Control: public, max-age=86400
+
+/demos/large-rocket-flight-sample.xlsx
+  Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight log</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e4d6c'/%3E%3Cpath d='M16 6v20M10 14h12' stroke='%23f7f4ee' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body data-mode="analyze">
+  <header class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <h1>Flight log</h1>
+        <p class="tag">Read a flight log, or sketch a model rocket. Not flight-control software.</p>
+      </div>
+    </div>
+    <div class="mode-switch" role="tablist" aria-label="What to work on">
+      <button type="button" id="mode-analyze" role="tab" aria-selected="true" aria-controls="workspace">Analyze</button>
+      <button type="button" id="mode-simulate" role="tab" aria-selected="false" aria-controls="workspace">Simulate</button>
+    </div>
+  </header>
+  <div id="origin-strip" class="origin-strip idle" role="status">Open a CSV or workbook to begin.</div>
+  <p class="runtime-retry-row"><button type="button" id="runtime-retry" hidden>Retry loading the runtime</button></p>
+
+  <div class="layout">
+    <form id="controls" class="panel" autocomplete="off" hidden>
+      <div class="actions">
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <button type="submit" class="primary" id="run">Run simulation</button>
+        <button type="button" id="reset">Reset</button>
+        <button type="button" id="again" hidden>Detect this file again</button>
+      </div>
+      <div class="panel-scroll">
+        <fieldset>
+          <legend>Flight sketch</legend>
+          <label class="field">
+            <span class="field-label">Time on the pad</span>
+            <span class="control"><input name="ground_s" inputmode="decimal" step="0.1"><span class="unit">s</span></span>
+            <span class="hint">Start on the ground. The detector learns the pad from the opening seconds.</span>
+            <span class="field-error" data-for="ground_s"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Powered climb</span>
+            <span class="control"><input name="boost_s" inputmode="decimal" step="0.1"><span class="unit">s</span></span>
+            <span class="field-error" data-for="boost_s"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Net upward acceleration</span>
+            <span class="control"><input name="boost_accel" inputmode="decimal" step="0.5"><span class="unit">m/s²</span></span>
+            <span class="hint">Already includes gravity. It is not a motor name.</span>
+            <span class="field-error" data-for="boost_accel"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Parachute sink rate</span>
+            <span class="control"><input name="descent_rate" inputmode="decimal" step="0.1"><span class="unit">m/s</span></span>
+            <span class="hint">Assumes the parachute opens at apogee and then falls at this constant rate.</span>
+            <span class="field-error" data-for="descent_rate"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Time after touchdown</span>
+            <span class="control"><input name="landed_s" inputmode="decimal" step="0.1"><span class="unit">s</span></span>
+            <span class="field-error" data-for="landed_s"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Sample rate</span>
+            <span class="control"><input name="sample_hz" inputmode="decimal" step="1"><span class="unit">Hz</span></span>
+            <span class="field-error" data-for="sample_hz"></span>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Site and sensor noise</legend>
+          <label class="field">
+            <span class="field-label">Launch site elevation</span>
+            <span class="control"><input name="site_elevation_m" inputmode="decimal" step="1"><span class="unit">m</span></span>
+            <span class="hint">Meters above sea level. Altitude on the chart is meters above this site.</span>
+            <span class="field-error" data-for="site_elevation_m"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Reference pressure</span>
+            <span class="control"><input name="reference_pressure_pa" inputmode="decimal" step="1"><span class="unit">Pa</span></span>
+            <span class="hint">ISA sea-level pressure is 101325 Pa. No commas.</span>
+            <span class="field-error" data-for="reference_pressure_pa"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Noise seed</span>
+            <span class="control"><input name="seed" inputmode="numeric" step="1"><span class="unit">#</span></span>
+            <span class="hint">The same whole number repeats the same noise.</span>
+            <span class="field-error" data-for="seed"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Pressure noise</span>
+            <span class="control"><input name="pressure_noise_pa" inputmode="decimal" step="1"><span class="unit">Pa</span></span>
+            <span class="hint">Standard deviation. Not a datasheet for any barometer.</span>
+            <span class="field-error" data-for="pressure_noise_pa"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Temperature noise</span>
+            <span class="control"><input name="temperature_noise_c" inputmode="decimal" step="0.05"><span class="unit">°C</span></span>
+            <span class="field-error" data-for="temperature_noise_c"></span>
+          </label>
+        </fieldset>
+
+        <details class="fold">
+          <summary>Detection settings</summary>
+          <fieldset>
+            <legend>Detection</legend>
+            <label class="field">
+              <span class="field-label">Smooth window</span>
+              <span class="control"><input name="smooth_s" inputmode="decimal" step="0.1"><span class="unit">s</span></span>
+              <span class="field-error" data-for="smooth_s"></span>
+            </label>
+            <label class="field">
+              <span class="field-label">Liftoff bar</span>
+              <span class="control"><input name="min_liftoff_m" inputmode="decimal" step="0.5"><span class="unit">m</span></span>
+              <span class="hint">The climb must clear this, or 8 times the pad scatter, whichever is larger.</span>
+              <span class="field-error" data-for="min_liftoff_m"></span>
+            </label>
+            <label class="field">
+              <span class="field-label">Liftoff must hold</span>
+              <span class="control"><input name="liftoff_sustain_s" inputmode="decimal" step="0.1"><span class="unit">s</span></span>
+              <span class="field-error" data-for="liftoff_sustain_s"></span>
+            </label>
+            <label class="field">
+              <span class="field-label">Landing band</span>
+              <span class="control"><input name="landing_band_m" inputmode="decimal" step="0.5"><span class="unit">m</span></span>
+              <span class="hint">How close to the pad counts as landed.</span>
+              <span class="field-error" data-for="landing_band_m"></span>
+            </label>
+          </fieldset>
+        </details>
+      </div>
+    </form>
+
+    <main class="workspace" id="workspace">
+      <div id="analyze-tools" class="analyze-tools">
+        <label class="file-button primary">
+          Open CSV or workbook
+          <input id="file" type="file" accept=".csv,text/csv,text/plain,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        </label>
+        <label class="file-button">
+          Open event list
+          <input id="events-file" type="file" accept=".csv,text/csv,text/plain">
+        </label>
+        <button type="button" id="download" disabled>Download CSV</button>
+      </div>
+
+      <section id="empty-state" class="empty">
+        <h2>Open a flight log</h2>
+        <p>Use a CSV or a one-sheet workbook. Mission time can be negative or fractional. A blank cell stays missing. Units are taken from the header or from the choice you confirm. This page does not guess them.</p>
+        <p>Included practice files are webcast readouts, not raw downlink and not independently verified. Starlink 15-18 is the dense file. Two later files are titled only “Starlink Mission,” dated 2026-10-27 and 2026-10-23 EDT, both from Vandenberg. Their group numbers and exact liftoff clock are not in the files as verified facts. A partial Transporter-18 workbook is included too.</p>
+        <p>The last row is not a landing, and the highest point in the file is not an orbital apogee, unless you turn on the model-rocket check for a short flight above the launch site.</p>
+        <div class="practice-files" aria-label="Practice files included with this page">
+          <button type="button" data-demo="demos/starlink-15-18/telemetry.csv" data-events="demos/starlink-15-18/events.csv">Starlink 15-18</button>
+          <button type="button" data-demo="demos/starlink-2026-10-27/telemetry.csv" data-events="demos/starlink-2026-10-27/events.csv">Starlink Mission 2026-10-27</button>
+          <button type="button" data-demo="demos/starlink-2026-10-23/telemetry.csv" data-events="demos/starlink-2026-10-23/events.csv">Starlink Mission 2026-10-23</button>
+          <button type="button" data-demo="demos/large-rocket-flight-sample.xlsx">Partial workbook</button>
+        </div>
+      </section>
+
+      <div id="loaded" hidden>
+        <div class="readout-row">
+          <p id="readout" class="readout" aria-live="polite">Move across a chart to read a sample.</p>
+          <div class="zoom-actions">
+            <button type="button" id="zoom-full">Full flight</button>
+            <button type="button" id="zoom-pad">Start of record</button>
+            <label class="check" id="truth-toggle" hidden>
+              <input type="checkbox" id="show-truth" checked>
+              True simulated path
+            </label>
+          </div>
+        </div>
+        <form id="window-form" class="window-form">
+          <label>From <input id="window-from" inputmode="decimal" aria-label="Window start in seconds"></label>
+          <label>To <input id="window-to" inputmode="decimal" aria-label="Window end in seconds"></label>
+          <button type="submit">Apply window</button>
+        </form>
+        <p id="chart-note" class="chart-note" hidden></p>
+
+        <section id="tracks" class="tracks" hidden>
+          <div class="track-bar" id="track-bar" role="tablist" aria-label="Stages"></div>
+          <p id="track-stats" class="track-stats"></p>
+          <details class="fold">
+            <summary>Time offsets</summary>
+            <p class="hint">An offset is added only on the chart. The file’s mission time is not rewritten, and nothing is guessed from another stage.</p>
+            <div id="offset-fields" class="offset-fields"></div>
+          </details>
+          <details class="fold">
+            <summary>Add a marker</summary>
+            <form id="marker-form" class="marker-form">
+              <label>Track <select id="marker-track"></select></label>
+              <label>Mission time (s) <input id="marker-time" inputmode="decimal" aria-label="Marker mission time in seconds"></label>
+              <label>Label <input id="marker-label" maxlength="40" aria-label="Marker label"></label>
+              <button type="submit">Add marker</button>
+            </form>
+            <p class="hint">A marker you add is a label. It is not a detected event.</p>
+          </details>
+          <div class="marker-head">
+            <h2>Source markers</h2>
+            <label>Show
+              <select id="marker-filter" aria-label="Filter source markers">
+                <option value="all">All</option>
+                <option value="graphic">Graphic</option>
+                <option value="audio">Audio, provisional</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint">Rows from an event list stay graphic or audio as written. ASR-assisted and provisional notes stay provisional. They are not detected or confirmed events. A new event list replaces the previous one. Markers you add yourself stay. A row is attached only to a track with the same name.</p>
+          <ol id="source-markers" class="source-markers" hidden></ol>
+        </section>
+
+        <section class="events" id="record-events" aria-label="Record window">
+          <article class="event" data-event="liftoff">
+            <h2>Liftoff</h2>
+            <p class="event-time">—</p>
+            <p class="event-alt"></p>
+            <p class="event-delta"></p>
+          </article>
+          <article class="event" data-event="apogee">
+            <h2>Apogee</h2>
+            <p class="event-time">—</p>
+            <p class="event-alt"></p>
+            <p class="event-delta"></p>
+          </article>
+          <article class="event" data-event="landing">
+            <h2>Landing</h2>
+            <p class="event-time">—</p>
+            <p class="event-alt"></p>
+            <p class="event-delta"></p>
+          </article>
+        </section>
+
+        <details id="read-notes" class="fold" hidden>
+          <summary>How this file was read</summary>
+          <p id="notes" class="notes"></p>
+        </details>
+
+        <div id="charts">
+          <section class="chart-card" id="card-altitude">
+            <header>
+              <h2>Altitude</h2>
+              <span class="unit-label">m above the launch site</span>
+              <span class="legend"><i class="swatch estimate"></i> Estimate <i class="swatch truth"></i> True path</span>
+            </header>
+            <canvas id="chart-altitude" aria-label="Altitude versus time"></canvas>
+          </section>
+          <section class="chart-card" id="card-pressure">
+            <header>
+              <h2>Pressure</h2>
+              <span class="unit-label">Pa</span>
+            </header>
+            <canvas id="chart-pressure" aria-label="Pressure or speed versus time"></canvas>
+          </section>
+          <section class="chart-card" id="card-temperature">
+            <header>
+              <h2>Temperature</h2>
+              <span class="unit-label">°C</span>
+            </header>
+            <canvas id="chart-temperature" aria-label="Temperature versus time"></canvas>
+          </section>
+        </div>
+        <p class="hint-line">Drag across a chart to zoom the time axis. Double-click a chart to show the full flight.</p>
+      </div>
+
+      <details class="fold" id="sim-limits" hidden>
+        <summary>What this sketch leaves out</summary>
+        <p>
+          The flight is a one-dimensional sketch: constant net climb acceleration, a drag-free coast,
+          and a parachute that opens at apogee and sinks at a constant rate. Sensor noise is plain
+          Gaussian noise, not a barometer model. No barometer is selected here, and this page does
+          not open a serial port.
+        </p>
+        <p>
+          Liftoff, apogee, and landing are read from the altitude estimate only. The detector does
+          not look at the sketch’s phase labels. It lags liftoff until the climb clears pad noise,
+          and it lags landing until recent motion dies away. A very low flight can be missed. A very
+          slow descent can be marked landed a little early. This is a check on a finished log. It
+          must not fire hardware, and it is not for flight safety.
+        </p>
+      </details>
+      <details class="fold" id="limits">
+        <summary>Limits of this page</summary>
+        <p>
+          This is a reader and a model-rocket sketch. It is not certified flight software, and it does not
+          accept every logger on the market. A header such as <span class="mono">altitude</span> with no unit
+          waits for you to choose meters, kilometers, or feet. Unknown altitude and speed references stay unknown.
+        </p>
+        <p>
+          Files over 20 MB, more than 500,000 rows, more than 128 columns, or a cell over 100,000 characters
+          are refused. Blank numbers are not filled in. A workbook with several sheets asks you to pick one.
+          Dynamic pressure is not calculated. g-force and engine-icon counts are display extras, not throttle.
+        </p>
+      </details>
+    </main>
+  </div>
+  <div id="import-dialog" class="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <h2 id="import-title">Import a table</h2>
+      <p class="hint">Match each column and its unit. A unit is filled in only when the header already names it. This page does not claim to read any particular flight controller.</p>
+      <p id="import-file" class="hint"></p>
+      <div id="sheet-picker" hidden>
+        <label class="field">
+          <span class="field-label">Sheet</span>
+          <span class="control"><select id="import-sheet"></select></span>
+          <span class="hint">This workbook has more than one sheet. Pick one. The others are not merged.</span>
+        </label>
+      </div>
+      <fieldset class="import-options">
+        <legend>Separator and header</legend>
+        <div class="choice-row" id="delimiter-choices"></div>
+        <label class="check"><input type="checkbox" id="import-header"> First row names the columns</label>
+      </fieldset>
+      <div id="import-warnings" class="import-warnings"></div>
+      <div class="import-table-wrap">
+        <table id="import-table"></table>
+      </div>
+      <div id="import-extra"></div>
+      <label class="check" id="import-append-row" hidden><input type="checkbox" id="import-append"> Add these tracks beside the flight already open</label>
+      <p class="hint" id="import-append-hint" hidden>Leave this off to replace the flight on screen. Checked, the new tracks stay next to the ones already open. Cancel, or a file that cannot be read, leaves the current flight unchanged.</p>
+      <label class="check"><input type="checkbox" id="import-zero-time"> Shift times so the first sample is 0 s</label>
+      <p class="hint">Leave this off for launch-relative mission time, including a negative countdown. T+30 stays T+30.</p>
+      <details class="fold">
+        <summary>More import choices</summary>
+        <label class="field">
+          <span class="field-label">Track name, if this file is one stage</span>
+          <span class="control"><input id="import-track-name" placeholder="Combined stack"></span>
+          <span class="hint">Ignored when a stage or vehicle column is mapped. Each name in that column becomes its own track.</span>
+        </label>
+        <label class="check"><input type="checkbox" id="import-model-events"> Run the model-rocket liftoff, apogee, and landing check</label>
+        <p class="hint">Off by default. That check is for a short flight above the launch site. It is not an orbital apogee, and the last row is not a landing.</p>
+        <label class="check"><input type="checkbox" id="import-attribution"> Attach the Transporter-18 attribution when the table shape matches</label>
+        <label class="check"><input type="checkbox" id="import-measured"> This file is a measured sensor log</label>
+        <p class="hint">Leave this unchecked unless you know the file came from a sensor. It will be marked imported, not simulated. A webcast readout keeps the origin written in the file.</p>
+      </details>
+      <p id="import-plan" class="import-plan"></p>
+      <p id="import-error" class="form-error" role="alert" hidden></p>
+      <div class="import-actions">
+        <button type="button" class="primary" id="import-apply">Import</button>
+        <button type="button" id="import-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
+  <script src="static/pyodide-boot.js"></script>
+  <script id="defaults" type="application/json">{"ground_s": 8.0, "boost_s": 2.8, "boost_accel": 35.0, "descent_rate": 7.5, "landed_s": 10.0, "sample_hz": 25.0, "site_elevation_m": 150.0, "reference_pressure_pa": 101325.0, "seed": 42, "pressure_noise_pa": 18.0, "temperature_noise_c": 0.25, "smooth_s": 0.6, "min_liftoff_m": 5.0, "liftoff_sustain_s": 0.5, "landing_band_m": 4.0}</script>
+  <script src="static/app.js"></script>
+</body>
+</html>
